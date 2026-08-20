@@ -33,6 +33,22 @@ st.markdown("""
             margin-bottom: 4px;
             transition: all 0.2s ease;
         }
+
+        /* Sidebar Logout Button Styling (Matches Sidebar Theme) */
+        [data-testid="stSidebar"] div.stButton > button {
+            background-color: #162a45 !important;
+            color: #ffffff !important;
+            border: 1px solid #2e7d32 !important;
+            width: 100% !important;
+            border-radius: 6px !important;
+            font-weight: 600 !important;
+            transition: all 0.3s ease !important;
+        }
+        [data-testid="stSidebar"] div.stButton > button:hover {
+            background-color: #2e7d32 !important;
+            color: #ffffff !important;
+            border-color: #2e7d32 !important;
+        }
         
         /* Metric cards */
         div[data-testid="stMetric"] {
@@ -93,6 +109,7 @@ st.markdown("""
             padding: 10px 24px !important;
             border-radius: 6px !important;
             transition: background-color 0.3s ease !important;
+            width: 100% !important;
         }
         
         div.stFormSubmitButton > button:hover {
@@ -101,6 +118,13 @@ st.markdown("""
         }
     </style>
 """, unsafe_allow_html=True)
+
+# Helper function to get base64 image strings
+def get_base64_image(image_path):
+    if os.path.exists(image_path):
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    return None
 
 # 3. Database Initialization
 DB_FILE = "welfare_system.db"
@@ -177,41 +201,57 @@ if "full_name" not in st.session_state:
 
 # --- LOGIN SCREEN ---
 if not st.session_state.authenticated:
-    st.markdown("""
-        <div style="max-width: 450px; margin: 40px auto 10px auto; text-align: center;">
-            <h2 style="color: #0b192c; font-weight: 800;">FAMILY WELFARE SYSTEM</h2>
-            <h4 style="color: #2e7d32;">Traffic Police Punjab</h4>
-            <p style="color: #666;">Please sign in to access the portal</p>
+    # Top Header Banner with logo.png
+    logo_base64 = get_base64_image("logo.png")
+    header_logo_html = f'<img src="data:image/png;base64,{logo_base64}" style="height: 110px; margin-bottom: 12px; display: block; margin-left: auto; margin-right: auto;">' if logo_base64 else ''
+
+    st.markdown(f"""
+        <div class="header-container">
+            {header_logo_html}
+            <div class="main-title">FAMILY WELFARE SYSTEM</div>
+            <div class="dept-title">Traffic Police Punjab</div>
+            <div class="tagline-text">A Digital Welfare & Financial Management Portal for Traffic Wardens</div>
         </div>
     """, unsafe_allow_html=True)
 
-    with st.form("login_form"):
-        login_user = st.text_input("Username")
-        login_pass = st.text_input("Password", type="password")
-        login_submit = st.form_submit_button("Sign In")
+    # Center-aligned Login Form Layout
+    col1, col2, col3 = st.columns([1, 1.2, 1])
 
-    if login_submit:
-        conn = get_connection()
-        c = conn.cursor()
-        c.execute("SELECT username, password, full_name, role, status FROM users WHERE username = ?", (login_user.strip(),))
-        user_row = c.fetchone()
-        conn.close()
+    with col2:
+        st.markdown("""
+            <div style="text-align: center; margin-bottom: 15px;">
+                <h3 style="color: #0b192c; font-weight: 700; margin-bottom: 0px;">🔐 System Login Portal</h3>
+                <p style="color: #666666; font-size: 0.95rem;">Enter your credentials to access the portal</p>
+            </div>
+        """, unsafe_allow_html=True)
 
-        if user_row:
-            u_name, u_pass, f_name, u_role, u_status = user_row
-            if u_pass == login_pass:
-                if u_status == "Disabled":
-                    st.error("This user account has been disabled. Please contact an Administrator.")
+        with st.form("login_form"):
+            login_user = st.text_input("Username")
+            login_pass = st.text_input("Password", type="password")
+            login_submit = st.form_submit_button("Sign In")
+
+        if login_submit:
+            conn = get_connection()
+            c = conn.cursor()
+            c.execute("SELECT username, password, full_name, role, status FROM users WHERE username = ?", (login_user.strip(),))
+            user_row = c.fetchone()
+            conn.close()
+
+            if user_row:
+                u_name, u_pass, f_name, u_role, u_status = user_row
+                if u_pass == login_pass:
+                    if u_status == "Disabled":
+                        st.error("This user account has been disabled. Please contact an Administrator.")
+                    else:
+                        st.session_state.authenticated = True
+                        st.session_state.username = u_name
+                        st.session_state.full_name = f_name
+                        st.session_state.user_role = u_role
+                        st.rerun()
                 else:
-                    st.session_state.authenticated = True
-                    st.session_state.username = u_name
-                    st.session_state.full_name = f_name
-                    st.session_state.user_role = u_role
-                    st.rerun()
+                    st.error("Invalid Username or Password.")
             else:
                 st.error("Invalid Username or Password.")
-        else:
-            st.error("Invalid Username or Password.")
 
     st.stop()
 
@@ -251,14 +291,8 @@ if st.session_state.user_role == "Admin":
 
 menu = st.sidebar.radio("Navigation Menu", nav_options)
 
-# 5. Clean Official Welcome Header with Larger Centered Logo
-def get_base64_image(image_path):
-    if os.path.exists(image_path):
-        with open(image_path, "rb") as img_file:
-            return base64.b64encode(img_file.read()).decode()
-    return None
-
-logo2_base64 = get_base64_image("logo2.png")
+# 5. Clean Official Welcome Header with Logo
+logo2_base64 = get_base64_image("logo2.png") or get_base64_image("logo.png")
 logo_html = f'<img src="data:image/png;base64,{logo2_base64}" style="height: 120px; margin-bottom: 15px; display: block; margin-left: auto; margin-right: auto;">' if logo2_base64 else ''
 
 st.markdown(f"""
