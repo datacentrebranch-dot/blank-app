@@ -148,7 +148,7 @@ menu = st.sidebar.radio(
     ]
 )
 
-# 5. Clean Official Welcome Header (Replaces Large Center Logo)
+# 5. Clean Official Welcome Header
 st.markdown("""
     <div class="header-container">
         <div class="main-title">FAMILY WELFARE SYSTEM</div>
@@ -205,7 +205,7 @@ elif menu == "👤 Register New Member":
         with col_b:
             cnic = st.text_input("CNIC Number (e.g., 35201-XXXXXXX-X) *")
             mobile = st.text_input("Mobile Number *")
-            amount = st.number_input("Initial Amount Deposited (Rs.) *", min_value=1000.0, step=500.0, value=1000.0)
+            amount = st.number_input("Initial Amount Deposited (Rs.) *", min_value=1000.0, step=100.0, value=1000.0)
             submitted_date = st.date_input("Submission Date", value=datetime.today())
 
         submit_btn = st.form_submit_button("Submit Registration")
@@ -247,7 +247,7 @@ elif menu == "💳 Record Monthly Payment":
         with st.form("payment_form", clear_on_submit=True):
             c1, c2 = st.columns(2)
             with c1:
-                payment_amount = st.number_input("Amount Deposited (Rs.) *", min_value=1000.0, step=500.0, value=1000.0)
+                payment_amount = st.number_input("Amount Deposited (Rs.) *", min_value=1000.0, step=100.0, value=1000.0)
                 payment_date = st.date_input("Deposit Date", value=datetime.today())
             with c2:
                 payment_month = st.date_input("Contribution Month", value=datetime.today(), help="Select any date within target contribution month")
