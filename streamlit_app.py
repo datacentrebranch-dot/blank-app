@@ -149,7 +149,7 @@ menu = st.sidebar.radio(
     ]
 )
 
-# 5. Clean Official Welcome Header with Inline Centered Logo
+# 5. Clean Official Welcome Header with Larger Centered Logo
 def get_base64_image(image_path):
     if os.path.exists(image_path):
         with open(image_path, "rb") as img_file:
@@ -157,7 +157,7 @@ def get_base64_image(image_path):
     return None
 
 logo2_base64 = get_base64_image("logo2.png")
-logo_html = f'<img src="data:image/png;base64,{logo2_base64}" style="height: 80px; margin-bottom: 12px; display: block; margin-left: auto; margin-right: auto;">' if logo2_base64 else ''
+logo_html = f'<img src="data:image/png;base64,{logo2_base64}" style="height: 120px; margin-bottom: 15px; display: block; margin-left: auto; margin-right: auto;">' if logo2_base64 else ''
 
 st.markdown(f"""
     <div class="header-container">
