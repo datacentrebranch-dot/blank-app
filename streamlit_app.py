@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import base64
 import pandas as pd
 from datetime import datetime
 import streamlit as st
@@ -45,7 +46,7 @@ st.markdown("""
         /* Header Banner Styling */
         .header-container {
             background-color: #ffffff;
-            padding: 20px 20px 25px 20px;
+            padding: 25px 20px;
             border-radius: 10px;
             text-align: center;
             border-bottom: 4px solid #2e7d32;
@@ -148,15 +149,19 @@ menu = st.sidebar.radio(
     ]
 )
 
-# 5. Clean Official Welcome Header with Center Logo2
-header_col1, header_col2, header_col3 = st.columns([1, 1, 1])
+# 5. Clean Official Welcome Header with Inline Centered Logo
+def get_base64_image(image_path):
+    if os.path.exists(image_path):
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    return None
 
-with header_col2:
-    if os.path.exists("logo2.png"):
-        st.image("logo2.png", width=110)
+logo2_base64 = get_base64_image("logo2.png")
+logo_html = f'<img src="data:image/png;base64,{logo2_base64}" style="height: 80px; margin-bottom: 12px; display: block; margin-left: auto; margin-right: auto;">' if logo2_base64 else ''
 
-st.markdown("""
-    <div class="header-container" style="margin-top: -10px;">
+st.markdown(f"""
+    <div class="header-container">
+        {logo_html}
         <div class="main-title">FAMILY WELFARE SYSTEM</div>
         <div class="dept-title">Traffic Police Punjab</div>
         <div class="tagline-text">A Digital Welfare & Financial Management Portal for Traffic Wardens</div>
