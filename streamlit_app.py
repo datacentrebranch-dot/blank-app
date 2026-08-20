@@ -109,13 +109,15 @@ def get_members():
     conn.close()
     return df
 
-# 4. Sidebar Navigation
+# 4. Sidebar Navigation (Centered Logo & Header)
 IMAGE_PATH = "logo.png"
 
 if os.path.exists(IMAGE_PATH):
-    st.sidebar.image(IMAGE_PATH, width=130)
+    sb_col1, sb_col2, sb_col3 = st.sidebar.columns([1, 2, 1])
+    with sb_col2:
+        st.image(IMAGE_PATH, use_container_width=True)
 
-st.sidebar.markdown("### 🛡️ Welfare Portal")
+st.sidebar.markdown("<h3 style='text-align: center;'>🛡️ Welfare Portal</h3>", unsafe_allow_html=True)
 st.sidebar.markdown("---")
 
 menu = st.sidebar.radio(
@@ -130,7 +132,7 @@ menu = st.sidebar.radio(
     ]
 )
 
-# 5. Header Section (Centered Logo & Title)
+# 5. Main Header Section (Centered Medium Logo & Title)
 col_l, col_c, col_r = st.columns([1, 1.2, 1])
 with col_c:
     if os.path.exists(IMAGE_PATH):
