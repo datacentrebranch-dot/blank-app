@@ -83,6 +83,22 @@ st.markdown("""
             border-radius: 10px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.05);
         }
+
+        /* Dark Form Submit Button Styling */
+        div.stFormSubmitButton > button {
+            background-color: #0b192c !important;
+            color: #ffffff !important;
+            border: none !important;
+            font-weight: 600 !important;
+            padding: 10px 24px !important;
+            border-radius: 6px !important;
+            transition: background-color 0.3s ease !important;
+        }
+        
+        div.stFormSubmitButton > button:hover {
+            background-color: #2e7d32 !important;
+            color: #ffffff !important;
+        }
     </style>
 """, unsafe_allow_html=True)
 
