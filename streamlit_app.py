@@ -161,7 +161,7 @@ menu = st.sidebar.radio(
         "💳 Record Monthly Payment", 
         "📊 Paid Monthly Report", 
         "⚠️ Unpaid Defaulters List", 
-        "🔍 Individual Ledger",
+        "🔍 Individual Warden Details",
         "🗑️ Manage & Delete Member"
     ]
 )
