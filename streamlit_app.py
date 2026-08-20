@@ -45,7 +45,7 @@ st.markdown("""
         /* Header Banner Styling */
         .header-container {
             background-color: #ffffff;
-            padding: 25px 20px;
+            padding: 20px 20px 25px 20px;
             border-radius: 10px;
             text-align: center;
             border-bottom: 4px solid #2e7d32;
@@ -125,7 +125,7 @@ def get_members():
     conn.close()
     return df
 
-# 4. Sidebar Navigation (Centered Branding Logo)
+# 4. Sidebar Navigation
 IMAGE_PATH = "logo.png"
 
 if os.path.exists(IMAGE_PATH):
@@ -148,9 +148,15 @@ menu = st.sidebar.radio(
     ]
 )
 
-# 5. Clean Official Welcome Header
+# 5. Clean Official Welcome Header with Center Logo2
+header_col1, header_col2, header_col3 = st.columns([1, 1, 1])
+
+with header_col2:
+    if os.path.exists("logo2.png"):
+        st.image("logo2.png", width=110)
+
 st.markdown("""
-    <div class="header-container">
+    <div class="header-container" style="margin-top: -10px;">
         <div class="main-title">FAMILY WELFARE SYSTEM</div>
         <div class="dept-title">Traffic Police Punjab</div>
         <div class="tagline-text">A Digital Welfare & Financial Management Portal for Traffic Wardens</div>
