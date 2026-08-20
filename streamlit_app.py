@@ -6,7 +6,7 @@ import streamlit as st
 
 # 1. Page Config
 st.set_page_config(
-    page_title="Family Welfare System - Traffic Wardens",
+    page_title="Family Welfare System - Traffic Police Punjab",
     page_icon="🛡️",
     layout="wide"
 )
@@ -42,21 +42,37 @@ st.markdown("""
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
         
-        /* Title styling */
-        .title-text {
-            color: #0b192c;
+        /* Header Banner Styling */
+        .header-container {
+            background-color: #ffffff;
+            padding: 25px 20px;
+            border-radius: 10px;
             text-align: center;
-            font-size: 2rem;
-            font-weight: 800;
-            letter-spacing: 0.5px;
-            margin-top: 10px;
-        }
-        .subtitle-text {
-            color: #2e7d32;
-            text-align: center;
-            font-size: 1.1rem;
-            font-weight: 600;
+            border-bottom: 4px solid #2e7d32;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
             margin-bottom: 25px;
+        }
+        .main-title {
+            color: #0b192c;
+            font-size: 2.3rem;
+            font-weight: 800;
+            letter-spacing: 1px;
+            margin: 0;
+            text-transform: uppercase;
+        }
+        .dept-title {
+            color: #2e7d32;
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-top: 5px;
+            margin-bottom: 8px;
+        }
+        .tagline-text {
+            color: #555555;
+            font-size: 1rem;
+            font-weight: 500;
+            margin: 0;
+            font-style: italic;
         }
         
         /* Form container styling */
@@ -109,7 +125,7 @@ def get_members():
     conn.close()
     return df
 
-# 4. Sidebar Navigation (Centered Logo & Header)
+# 4. Sidebar Navigation (Centered Branding Logo)
 IMAGE_PATH = "logo.png"
 
 if os.path.exists(IMAGE_PATH):
@@ -132,15 +148,14 @@ menu = st.sidebar.radio(
     ]
 )
 
-# 5. Main Header Section (Centered Medium Logo & Title)
-col_l, col_c, col_r = st.columns([1, 1.2, 1])
-with col_c:
-    if os.path.exists(IMAGE_PATH):
-        st.image(IMAGE_PATH, width=280)
-    st.markdown('<div class="title-text">FAMILY WELFARE SYSTEM</div>', unsafe_allow_html=True)
-    st.markdown('<div class="subtitle-text">FOR TRAFFIC WARDENS</div>', unsafe_allow_html=True)
-
-st.markdown("---")
+# 5. Clean Official Welcome Header (Replaces Large Center Logo)
+st.markdown("""
+    <div class="header-container">
+        <div class="main-title">FAMILY WELFARE SYSTEM</div>
+        <div class="dept-title">Traffic Police Punjab</div>
+        <div class="tagline-text">A Digital Welfare & Financial Management Portal for Traffic Wardens</div>
+    </div>
+""", unsafe_allow_html=True)
 
 # 6. Page Routing
 
