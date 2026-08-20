@@ -20,7 +20,13 @@ st.markdown("""
             background-color: #f8f9fa;
         }
         
-        /* Sidebar styling */
+        /* Sidebar container flex alignment */
+        [data-testid="stSidebar"] > div:first-child {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
         [data-testid="stSidebar"] {
             background-color: #0b192c;
         }
@@ -34,7 +40,7 @@ st.markdown("""
             transition: all 0.2s ease;
         }
 
-        /* Sidebar Logout Button Styling (Matches Sidebar Theme) */
+        /* Sidebar Logout Button Styling (Bottom Pinned) */
         [data-testid="stSidebar"] div.stButton > button {
             background-color: #162a45 !important;
             color: #ffffff !important;
@@ -266,13 +272,6 @@ if os.path.exists(IMAGE_PATH):
 st.sidebar.markdown("<h3 style='text-align: center;'>🛡️ Welfare Portal</h3>", unsafe_allow_html=True)
 st.sidebar.markdown(f"**User:** {st.session_state.full_name} ({st.session_state.user_role})")
 
-if st.sidebar.button("🚪 Logout"):
-    st.session_state.authenticated = False
-    st.session_state.username = ""
-    st.session_state.user_role = ""
-    st.session_state.full_name = ""
-    st.rerun()
-
 st.sidebar.markdown("---")
 
 # Navigation Options based on Role
@@ -290,6 +289,18 @@ if st.session_state.user_role == "Admin":
     nav_options.append("⚙️ User Administration")
 
 menu = st.sidebar.radio("Navigation Menu", nav_options)
+
+# Bottom Container for Logout Button
+bottom_container = st.sidebar.container()
+
+with bottom_container:
+    st.sidebar.markdown("<br><br>", unsafe_allow_html=True)
+    if st.sidebar.button("🚪 Logout"):
+        st.session_state.authenticated = False
+        st.session_state.username = ""
+        st.session_state.user_role = ""
+        st.session_state.full_name = ""
+        st.rerun()
 
 # 5. Clean Official Welcome Header with Logo
 logo2_base64 = get_base64_image("logo2.png") or get_base64_image("logo.png")
