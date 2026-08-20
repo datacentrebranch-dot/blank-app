@@ -161,7 +161,8 @@ menu = st.sidebar.radio(
         "💳 Record Monthly Payment", 
         "📊 Paid Monthly Report", 
         "⚠️ Unpaid Defaulters List", 
-        "🔍 Individual Ledger"
+        "🔍 Individual Ledger",
+        "🗑️ Manage & Delete Member"
     ]
 )
 
@@ -216,6 +217,7 @@ if menu == "🏠 Home Dashboard":
         - Submit monthly contributions (Rs. 1,000/- or higher).
         - View and export monthly paid/unpaid compliance reports.
         - Track individual payment histories and cumulative deposits.
+        - Remove or delete member entries from the portal.
     """)
 
 # --- REGISTER MEMBER ---
@@ -406,3 +408,37 @@ elif menu == "🔍 Individual Ledger":
             st.download_button("📥 Export Member Ledger (CSV)", csv, f"Ledger_{selected_belt_no}.csv", "text/csv")
         else:
             st.info("No deposit history found for this member.")
+
+# --- MANAGE & DELETE MEMBER ---
+elif menu == "🗑️ Manage & Delete Member":
+    st.subheader("🗑️ Delete Warden Record")
+    st.caption("Remove a registered warden member and purge their payment records permanently.")
+
+    members_df = get_members()
+    if members_df.empty:
+        st.warning("No registered members found in the database.")
+    else:
+        member_options = {f"{row['name']} (Belt No: {row['belt_no']}) - CNIC: {row['cnic']}": row['belt_no'] for _, row in members_df.iterrows()}
+        selected_display = st.selectbox("Select Warden to Remove *", list(member_options.keys()))
+        selected_belt_no = member_options[selected_display]
+
+        conn = get_connection()
+        member_info = pd.read_sql_query(f"SELECT * FROM members WHERE belt_no = '{selected_belt_no}'", conn).iloc[0]
+        conn.close()
+
+        st.warning(f"⚠️ **Warning:** You are selecting **{member_info['name']}** (Belt No: **{member_info['belt_no']}**) for permanent removal.")
+        
+        confirm = st.checkbox("I confirm that I want to delete this warden and all associated payment history.")
+        
+        if st.button("Permanently Delete Member", type="primary"):
+            if confirm:
+                conn = get_connection()
+                c = conn.cursor()
+                c.execute("DELETE FROM payments WHERE belt_no = ?", (selected_belt_no,))
+                c.execute("DELETE FROM members WHERE belt_no = ?", (selected_belt_no,))
+                conn.commit()
+                conn.close()
+                st.success(f"Member **{member_info['name']}** (Belt No: {selected_belt_no}) has been deleted.")
+                st.rerun()
+            else:
+                st.error("Please check the confirmation box to proceed with deletion.")
