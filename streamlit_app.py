@@ -131,6 +131,23 @@ def init_db():
             FOREIGN KEY (belt_no) REFERENCES members (belt_no)
         )
     ''')
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            username TEXT PRIMARY KEY,
+            password TEXT NOT NULL,
+            full_name TEXT NOT NULL,
+            role TEXT NOT NULL,
+            status TEXT NOT NULL
+        )
+    ''')
+    
+    # Create default Admin if no users exist
+    c.execute("SELECT COUNT(*) FROM users")
+    if c.fetchone()[0] == 0:
+        c.execute(
+            "INSERT INTO users (username, password, full_name, role, status) VALUES (?, ?, ?, ?, ?)",
+            ("admin", "admin123", "System Administrator", "Admin", "Active")
+        )
     conn.commit()
     conn.close()
 
@@ -142,6 +159,62 @@ def get_members():
     conn.close()
     return df
 
+def get_users():
+    conn = get_connection()
+    df = pd.read_sql_query("SELECT username, full_name, role, status FROM users ORDER BY username ASC", conn)
+    conn.close()
+    return df
+
+# Initialize Session State for Authentication
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+if "username" not in st.session_state:
+    st.session_state.username = ""
+if "user_role" not in st.session_state:
+    st.session_state.user_role = ""
+if "full_name" not in st.session_state:
+    st.session_state.full_name = ""
+
+# --- LOGIN SCREEN ---
+if not st.session_state.authenticated:
+    st.markdown("""
+        <div style="max-width: 450px; margin: 40px auto 10px auto; text-align: center;">
+            <h2 style="color: #0b192c; font-weight: 800;">FAMILY WELFARE SYSTEM</h2>
+            <h4 style="color: #2e7d32;">Traffic Police Punjab</h4>
+            <p style="color: #666;">Please sign in to access the portal</p>
+        </div>
+    """, unsafe_allow_html=True)
+
+    with st.form("login_form"):
+        login_user = st.text_input("Username")
+        login_pass = st.text_input("Password", type="password")
+        login_submit = st.form_submit_button("Sign In")
+
+    if login_submit:
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute("SELECT username, password, full_name, role, status FROM users WHERE username = ?", (login_user.strip(),))
+        user_row = c.fetchone()
+        conn.close()
+
+        if user_row:
+            u_name, u_pass, f_name, u_role, u_status = user_row
+            if u_pass == login_pass:
+                if u_status == "Disabled":
+                    st.error("This user account has been disabled. Please contact an Administrator.")
+                else:
+                    st.session_state.authenticated = True
+                    st.session_state.username = u_name
+                    st.session_state.full_name = f_name
+                    st.session_state.user_role = u_role
+                    st.rerun()
+            else:
+                st.error("Invalid Username or Password.")
+        else:
+            st.error("Invalid Username or Password.")
+
+    st.stop()
+
 # 4. Sidebar Navigation
 IMAGE_PATH = "logo.png"
 
@@ -151,20 +224,32 @@ if os.path.exists(IMAGE_PATH):
         st.image(IMAGE_PATH, use_container_width=True)
 
 st.sidebar.markdown("<h3 style='text-align: center;'>🛡️ Welfare Portal</h3>", unsafe_allow_html=True)
+st.sidebar.markdown(f"**User:** {st.session_state.full_name} ({st.session_state.user_role})")
+
+if st.sidebar.button("🚪 Logout"):
+    st.session_state.authenticated = False
+    st.session_state.username = ""
+    st.session_state.user_role = ""
+    st.session_state.full_name = ""
+    st.rerun()
+
 st.sidebar.markdown("---")
 
-menu = st.sidebar.radio(
-    "Navigation Menu",
-    [
-        "🏠 Home Dashboard", 
-        "👤 Register New Member", 
-        "💳 Record Monthly Payment", 
-        "📊 Paid Monthly Report", 
-        "⚠️ Unpaid Defaulters List", 
-        "🔍 Individual Warden Details",
-        "🗑️ Manage & Delete Member"
-    ]
-)
+# Navigation Options based on Role
+nav_options = [
+    "🏠 Home Dashboard", 
+    "👤 Register New Member", 
+    "💳 Record Monthly Payment", 
+    "📊 Paid Monthly Report", 
+    "⚠️ Unpaid Defaulters List", 
+    "🔍 Individual Ledger"
+]
+
+if st.session_state.user_role == "Admin":
+    nav_options.append("🗑️ Manage & Delete Member")
+    nav_options.append("⚙️ User Administration")
+
+menu = st.sidebar.radio("Navigation Menu", nav_options)
 
 # 5. Clean Official Welcome Header with Larger Centered Logo
 def get_base64_image(image_path):
@@ -217,7 +302,6 @@ if menu == "🏠 Home Dashboard":
         - Submit monthly contributions (Rs. 1,000/- or higher).
         - View and export monthly paid/unpaid compliance reports.
         - Track individual payment histories and cumulative deposits.
-        - Remove or delete member entries from the portal.
     """)
 
 # --- REGISTER MEMBER ---
@@ -409,8 +493,8 @@ elif menu == "🔍 Individual Ledger":
         else:
             st.info("No deposit history found for this member.")
 
-# --- MANAGE & DELETE MEMBER ---
-elif menu == "🗑️ Manage & Delete Member":
+# --- MANAGE & DELETE MEMBER (ADMIN ONLY) ---
+elif menu == "🗑️ Manage & Delete Member" and st.session_state.user_role == "Admin":
     st.subheader("🗑️ Delete Warden Record")
     st.caption("Remove a registered warden member and purge their payment records permanently.")
 
@@ -442,3 +526,85 @@ elif menu == "🗑️ Manage & Delete Member":
                 st.rerun()
             else:
                 st.error("Please check the confirmation box to proceed with deletion.")
+
+# --- USER ADMINISTRATION (ADMIN ONLY) ---
+elif menu == "⚙️ User Administration" and st.session_state.user_role == "Admin":
+    st.subheader("⚙️ System User Administration")
+    st.caption("Create new accounts, modify user roles, or disable/enable existing system users.")
+
+    tab1, tab2 = st.tabs(["👤 Existing Users", "➕ Create New User"])
+
+    with tab1:
+        st.markdown("#### **Active System Users**")
+        users_df = get_users()
+        st.dataframe(users_df, use_container_width=True)
+
+        st.markdown("---")
+        st.markdown("#### **Modify or Disable User Account**")
+        
+        user_list = users_df['username'].tolist()
+        selected_user = st.selectbox("Select User to Modify", user_list)
+
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute("SELECT username, password, full_name, role, status FROM users WHERE username = ?", (selected_user,))
+        target_user = c.fetchone()
+        conn.close()
+
+        if target_user:
+            with st.form("edit_user_form"):
+                e_u_name, e_u_pass, e_f_name, e_role, e_status = target_user
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    new_full_name = st.text_input("Full Name", value=e_f_name)
+                    new_password = st.text_input("New Password (leave plain to keep existing)", value=e_u_pass, type="password")
+                with col2:
+                    new_role = st.selectbox("Role", ["Admin", "Operator"], index=0 if e_role == "Admin" else 1)
+                    new_status = st.selectbox("Account Status", ["Active", "Disabled"], index=0 if e_status == "Active" else 1)
+
+                update_btn = st.form_submit_button("Update User Profile")
+
+            if update_btn:
+                conn = get_connection()
+                c = conn.cursor()
+                c.execute(
+                    "UPDATE users SET full_name = ?, password = ?, role = ?, status = ? WHERE username = ?",
+                    (new_full_name.strip(), new_password, new_role, new_status, selected_user)
+                )
+                conn.commit()
+                conn.close()
+                st.success(f"User **{selected_user}** successfully updated!")
+                st.rerun()
+
+    with tab2:
+        st.markdown("#### **Register New System User**")
+        with st.form("create_user_form", clear_on_submit=True):
+            col_a, col_b = st.columns(2)
+            with col_a:
+                new_username = st.text_input("Username *")
+                new_full_name = st.text_input("Full Name *")
+                new_password = st.text_input("Password *", type="password")
+            with col_b:
+                new_role = st.selectbox("User Role *", ["Operator", "Admin"])
+                new_status = st.selectbox("Initial Status *", ["Active", "Disabled"])
+
+            create_btn = st.form_submit_button("Create User Account")
+
+        if create_btn:
+            if not new_username or not new_full_name or not new_password:
+                st.error("Please fill in all required fields.")
+            else:
+                try:
+                    conn = get_connection()
+                    c = conn.cursor()
+                    c.execute(
+                        "INSERT INTO users (username, password, full_name, role, status) VALUES (?, ?, ?, ?, ?)",
+                        (new_username.strip().lower(), new_password, new_full_name.strip(), new_role, new_status)
+                    )
+                    conn.commit()
+                    conn.close()
+                    st.success(f"User account **{new_username}** ({new_role}) successfully created!")
+                    st.rerun()
+                except sqlite3.IntegrityError:
+                    st.error(f"Error: Username '{new_username}' already exists.")
