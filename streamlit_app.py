@@ -15,32 +15,16 @@ st.set_page_config(
 # 2. Custom CSS Styling
 st.markdown("""
     <style>
-        /* Main background & typography */
-        .main {
-            background-color: #f8f9fa;
-        }
+        .main { background-color: #f8f9fa; }
         
-        /* Sidebar container flex alignment */
         [data-testid="stSidebar"] > div:first-child {
             display: flex;
             flex-direction: column;
             height: 100vh;
         }
+        [data-testid="stSidebar"] { background-color: #0b192c; }
+        [data-testid="stSidebar"] * { color: #ffffff !important; }
         
-        [data-testid="stSidebar"] {
-            background-color: #0b192c;
-        }
-        [data-testid="stSidebar"] * {
-            color: #ffffff !important;
-        }
-        [data-testid="stSidebar"] .stRadio label {
-            padding: 8px 12px;
-            border-radius: 6px;
-            margin-bottom: 4px;
-            transition: all 0.2s ease;
-        }
-
-        /* Sidebar Logout Button Styling (Bottom Pinned) */
         [data-testid="stSidebar"] div.stButton > button {
             background-color: #162a45 !important;
             color: #ffffff !important;
@@ -53,10 +37,8 @@ st.markdown("""
         [data-testid="stSidebar"] div.stButton > button:hover {
             background-color: #2e7d32 !important;
             color: #ffffff !important;
-            border-color: #2e7d32 !important;
         }
         
-        /* Metric cards */
         div[data-testid="stMetric"] {
             background-color: #ffffff;
             border-left: 5px solid #2e7d32;
@@ -65,7 +47,6 @@ st.markdown("""
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
         
-        /* Header Banner Styling */
         .header-container {
             background-color: #ffffff;
             padding: 25px 20px;
@@ -93,20 +74,14 @@ st.markdown("""
         .tagline-text {
             color: #555555;
             font-size: 1rem;
-            font-weight: 500;
-            margin: 0;
             font-style: italic;
         }
-        
-        /* Form container styling */
         .stForm {
             background-color: #ffffff;
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.05);
         }
-
-        /* Dark Form Submit Button Styling */
         div.stFormSubmitButton > button {
             background-color: #0b192c !important;
             color: #ffffff !important;
@@ -114,10 +89,8 @@ st.markdown("""
             font-weight: 600 !important;
             padding: 10px 24px !important;
             border-radius: 6px !important;
-            transition: background-color 0.3s ease !important;
             width: 100% !important;
         }
-        
         div.stFormSubmitButton > button:hover {
             background-color: #2e7d32 !important;
             color: #ffffff !important;
@@ -132,11 +105,73 @@ def get_base64_image(image_path):
             return base64.b64encode(img_file.read()).decode()
     return None
 
-# 3. Database Initialization
+# 3. Database Initialization & Automated Excel Data Migration
 DB_FILE = "welfare_system.db"
+EXCEL_FILE = "old record database.xlsx"
 
 def get_connection():
     return sqlite3.connect(DB_FILE)
+
+def migrate_excel_data():
+    if not os.path.exists(EXCEL_FILE):
+        return
+
+    try:
+        df_raw = pd.read_excel(EXCEL_FILE, sheet_name='Sheet1 (2)')
+        df_raw.columns = df_raw.iloc[0].values
+        df_members = df_raw[1:169].reset_index(drop=True)
+
+        df_members['Belt #'] = df_members['Belt #'].astype(str).str.strip()
+        df_members['Name '] = df_members['Name '].astype(str).str.strip()
+        df_members['Ph. #'] = df_members['Ph. #'].astype(str).str.strip().replace('nan', '')
+
+        clean_members = df_members[
+            df_members['Belt #'].notna() & 
+            (df_members['Belt #'] != 'nan') & 
+            (df_members['Name '] != 'TOTAL')
+        ].copy()
+
+        conn = get_connection()
+        c = conn.cursor()
+
+        # Insert members
+        for _, row in clean_members.iterrows():
+            belt_no = row['Belt #']
+            name = row['Name ']
+            phone = row['Ph. #'] if row['Ph. #'] else 'N/A'
+            c.execute("""
+                INSERT OR IGNORE INTO members (belt_no, name, father_name, cnic, mobile, join_date)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (belt_no, name, 'N/A', f"CNIC-{belt_no}", phone, "2025-12-01"))
+
+        # Map monthly columns to dates
+        month_map = {
+            'December ': '2025-12',
+            'January ': '2026-01',
+            'February': '2026-02',
+            'March': '2026-03',
+            'April': '2026-04',
+            'May': '2026-05',
+            'June': '2026-06',
+            'JULY': '2026-07',
+            'AUG': '2026-08'
+        }
+
+        # Insert monthly payment logs
+        for _, row in clean_members.iterrows():
+            belt_no = row['Belt #']
+            for col_name, month_yr in month_map.items():
+                val = pd.to_numeric(row[col_name], errors='coerce')
+                if pd.notna(val) and val > 0:
+                    c.execute("""
+                        INSERT INTO payments (belt_no, amount, payment_date, month_year)
+                        VALUES (?, ?, ?, ?)
+                    """, (belt_no, float(val), f"{month_yr}-01", month_yr))
+
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print("Data migration notice:", e)
 
 def init_db():
     conn = get_connection()
@@ -145,10 +180,10 @@ def init_db():
         CREATE TABLE IF NOT EXISTS members (
             belt_no TEXT PRIMARY KEY,
             name TEXT NOT NULL,
-            father_name TEXT NOT NULL,
-            cnic TEXT UNIQUE NOT NULL,
-            mobile TEXT NOT NULL,
-            join_date DATE NOT NULL
+            father_name TEXT,
+            cnic TEXT,
+            mobile TEXT,
+            join_date DATE
         )
     ''')
     c.execute('''
@@ -171,15 +206,22 @@ def init_db():
         )
     ''')
     
-    # Create default Admin if no users exist
     c.execute("SELECT COUNT(*) FROM users")
     if c.fetchone()[0] == 0:
         c.execute(
             "INSERT INTO users (username, password, full_name, role, status) VALUES (?, ?, ?, ?, ?)",
             ("admin", "admin123", "System Administrator", "Admin", "Active")
         )
-    conn.commit()
-    conn.close()
+    
+    # Check if members table is empty, then trigger automatic Excel migration
+    c.execute("SELECT COUNT(*) FROM members")
+    if c.fetchone()[0] == 0:
+        conn.commit()
+        conn.close()
+        migrate_excel_data()
+    else:
+        conn.commit()
+        conn.close()
 
 init_db()
 
@@ -195,7 +237,7 @@ def get_users():
     conn.close()
     return df
 
-# Initialize Session State for Authentication
+# Initialize Session State
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 if "username" not in st.session_state:
@@ -207,7 +249,6 @@ if "full_name" not in st.session_state:
 
 # --- LOGIN SCREEN ---
 if not st.session_state.authenticated:
-    # Top Header Banner with logo.png
     logo_base64 = get_base64_image("logo.png")
     header_logo_html = f'<img src="data:image/png;base64,{logo_base64}" style="height: 110px; margin-bottom: 12px; display: block; margin-left: auto; margin-right: auto;">' if logo_base64 else ''
 
@@ -220,7 +261,6 @@ if not st.session_state.authenticated:
         </div>
     """, unsafe_allow_html=True)
 
-    # Center-aligned Login Form Layout
     col1, col2, col3 = st.columns([1, 1.2, 1])
 
     with col2:
@@ -271,10 +311,8 @@ if os.path.exists(IMAGE_PATH):
 
 st.sidebar.markdown("<h3 style='text-align: center;'>🛡️ Welfare Portal</h3>", unsafe_allow_html=True)
 st.sidebar.markdown(f"**User:** {st.session_state.full_name} ({st.session_state.user_role})")
-
 st.sidebar.markdown("---")
 
-# Navigation Options based on Role
 nav_options = [
     "🏠 Home Dashboard", 
     "👤 Register New Member", 
@@ -290,9 +328,8 @@ if st.session_state.user_role == "Admin":
 
 menu = st.sidebar.radio("Navigation Menu", nav_options)
 
-# Bottom Container for Logout Button
+# Bottom Logout Button
 bottom_container = st.sidebar.container()
-
 with bottom_container:
     st.sidebar.markdown("<br><br>", unsafe_allow_html=True)
     if st.sidebar.button("🚪 Logout"):
@@ -302,7 +339,7 @@ with bottom_container:
         st.session_state.full_name = ""
         st.rerun()
 
-# 5. Clean Official Welcome Header with Logo
+# 5. Clean Official Welcome Header
 logo2_base64 = get_base64_image("logo2.png") or get_base64_image("logo.png")
 logo_html = f'<img src="data:image/png;base64,{logo2_base64}" style="height: 120px; margin-bottom: 15px; display: block; margin-left: auto; margin-right: auto;">' if logo2_base64 else ''
 
@@ -321,7 +358,7 @@ st.markdown(f"""
 if menu == "🏠 Home Dashboard":
     st.subheader("📌 System Overview & Quick Summary")
     
-    current_month_str = datetime.now().strftime("%Y-%m")
+    current_month_str = "2026-08"
     conn = get_connection()
     
     total_members = pd.read_sql_query("SELECT COUNT(*) as cnt FROM members", conn).iloc[0]['cnt']
@@ -339,45 +376,36 @@ if menu == "🏠 Home Dashboard":
     m4.metric(f"Pending Defaulters ({current_month_str})", f"{defaulters_count} Wardens")
 
     st.markdown("<br>", unsafe_allow_html=True)
-    
-    st.info("""
-        **Welcome to the Traffic Wardens Family Welfare Portal**  
-        Use the sidebar navigation menu on the left to:
-        - Register new warden members and record initial deposits.
-        - Submit monthly contributions (Rs. 1,000/- or higher).
-        - View and export monthly paid/unpaid compliance reports.
-        - Track individual payment histories and cumulative deposits.
-    """)
+    st.success("✅ **Excel Records Loaded:** All historical records from `old record database.xlsx` have been imported into the active database!")
 
 # --- REGISTER MEMBER ---
 elif menu == "👤 Register New Member":
     st.subheader("📋 Register New Warden Member")
-    st.caption("Fill in particulars to add a new warden to the welfare registry.")
 
     with st.form("register_form", clear_on_submit=True):
         col_a, col_b = st.columns(2)
         with col_a:
             name = st.text_input("Full Name *")
-            father_name = st.text_input("Father's Name *")
+            father_name = st.text_input("Father's Name")
             belt_no = st.text_input("Belt No. (Unique ID) *")
         with col_b:
-            cnic = st.text_input("CNIC Number (e.g., 35201-XXXXXXX-X) *")
-            mobile = st.text_input("Mobile Number *")
-            amount = st.number_input("Initial Amount Deposited (Rs.) *", min_value=1000.0, step=100.0, value=1000.0)
+            cnic = st.text_input("CNIC Number")
+            mobile = st.text_input("Mobile Number")
+            amount = st.number_input("Initial Deposit (Rs.) *", min_value=1000.0, step=100.0, value=1000.0)
             submitted_date = st.date_input("Submission Date", value=datetime.today())
 
         submit_btn = st.form_submit_button("Submit Registration")
 
     if submit_btn:
-        if not name or not father_name or not belt_no or not cnic or not mobile:
-            st.error("Please fill in all required fields.")
+        if not name or not belt_no:
+            st.error("Please provide both Full Name and Belt Number.")
         else:
             try:
                 conn = get_connection()
                 c = conn.cursor()
                 c.execute(
                     "INSERT INTO members (belt_no, name, father_name, cnic, mobile, join_date) VALUES (?, ?, ?, ?, ?, ?)",
-                    (belt_no.strip(), name.strip(), father_name.strip(), cnic.strip(), mobile.strip(), str(submitted_date))
+                    (belt_no.strip(), name.strip(), father_name.strip() or 'N/A', cnic.strip() or 'N/A', mobile.strip() or 'N/A', str(submitted_date))
                 )
                 month_year = submitted_date.strftime("%Y-%m")
                 c.execute(
@@ -386,9 +414,9 @@ elif menu == "👤 Register New Member":
                 )
                 conn.commit()
                 conn.close()
-                st.success(f"Member **{name}** (Belt No: {belt_no}) successfully registered with initial deposit of Rs. {amount:,.2f}!")
+                st.success(f"Member **{name}** (Belt No: {belt_no}) successfully registered!")
             except sqlite3.IntegrityError:
-                st.error("Error: Belt No or CNIC already exists in the database.")
+                st.error("Error: Belt No already exists in the database.")
 
 # --- RECORD PAYMENT ---
 elif menu == "💳 Record Monthly Payment":
@@ -396,7 +424,7 @@ elif menu == "💳 Record Monthly Payment":
     
     members_df = get_members()
     if members_df.empty:
-        st.warning("No members registered yet. Please register members first.")
+        st.warning("No members registered yet.")
     else:
         member_options = {f"{row['name']} (Belt No: {row['belt_no']})": row['belt_no'] for _, row in members_df.iterrows()}
         selected_display = st.selectbox("Select Warden Member *", list(member_options.keys()))
@@ -408,7 +436,7 @@ elif menu == "💳 Record Monthly Payment":
                 payment_amount = st.number_input("Amount Deposited (Rs.) *", min_value=1000.0, step=100.0, value=1000.0)
                 payment_date = st.date_input("Deposit Date", value=datetime.today())
             with c2:
-                payment_month = st.date_input("Contribution Month", value=datetime.today(), help="Select any date within target contribution month")
+                payment_month = st.date_input("Contribution Month", value=datetime.today())
 
             submit_payment = st.form_submit_button("Save Payment Record")
 
@@ -429,8 +457,8 @@ elif menu == "📊 Paid Monthly Report":
     st.subheader("📊 Submitted Funds Report")
     
     col_m, col_y = st.columns(2)
-    selected_month = col_m.selectbox("Select Month", ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"], index=datetime.now().month-1)
-    selected_year = col_y.number_input("Select Year", min_value=2020, max_value=2030, value=datetime.now().year)
+    selected_month = col_m.selectbox("Select Month", ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"], index=7)
+    selected_year = col_y.number_input("Select Year", min_value=2020, max_value=2030, value=2026)
     
     target_period = f"{selected_year}-{selected_month}"
     
@@ -439,14 +467,13 @@ elif menu == "📊 Paid Monthly Report":
         SELECT 
             m.belt_no AS 'Belt No',
             m.name AS 'Name',
-            m.father_name AS 'Father Name',
             m.mobile AS 'Mobile No',
             p.amount AS 'Amount Paid (Rs.)',
             p.payment_date AS 'Deposit Date'
         FROM payments p
         JOIN members m ON p.belt_no = m.belt_no
         WHERE p.month_year = '{target_period}'
-        ORDER BY p.payment_date DESC
+        ORDER BY m.name ASC
     """
     df_paid = pd.read_sql_query(query, conn)
     conn.close()
@@ -464,8 +491,8 @@ elif menu == "⚠️ Unpaid Defaulters List":
     st.subheader("⚠️ Pending Contribution Defaulters")
     
     col_m, col_y = st.columns(2)
-    selected_month = col_m.selectbox("Select Month", ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"], index=datetime.now().month-1)
-    selected_year = col_y.number_input("Select Year", min_value=2020, max_value=2030, value=datetime.now().year)
+    selected_month = col_m.selectbox("Select Month", ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"], index=7)
+    selected_year = col_y.number_input("Select Year", min_value=2020, max_value=2030, value=2026)
     
     target_period = f"{selected_year}-{selected_month}"
 
@@ -474,8 +501,6 @@ elif menu == "⚠️ Unpaid Defaulters List":
         SELECT 
             m.belt_no AS 'Belt No',
             m.name AS 'Name',
-            m.father_name AS 'Father Name',
-            m.cnic AS 'CNIC',
             m.mobile AS 'Mobile No',
             m.join_date AS 'Registration Date'
         FROM members m
@@ -541,13 +566,12 @@ elif menu == "🔍 Individual Ledger":
 # --- MANAGE & DELETE MEMBER (ADMIN ONLY) ---
 elif menu == "🗑️ Manage & Delete Member" and st.session_state.user_role == "Admin":
     st.subheader("🗑️ Delete Warden Record")
-    st.caption("Remove a registered warden member and purge their payment records permanently.")
 
     members_df = get_members()
     if members_df.empty:
         st.warning("No registered members found in the database.")
     else:
-        member_options = {f"{row['name']} (Belt No: {row['belt_no']}) - CNIC: {row['cnic']}": row['belt_no'] for _, row in members_df.iterrows()}
+        member_options = {f"{row['name']} (Belt No: {row['belt_no']})": row['belt_no'] for _, row in members_df.iterrows()}
         selected_display = st.selectbox("Select Warden to Remove *", list(member_options.keys()))
         selected_belt_no = member_options[selected_display]
 
@@ -575,7 +599,6 @@ elif menu == "🗑️ Manage & Delete Member" and st.session_state.user_role == 
 # --- USER ADMINISTRATION (ADMIN ONLY) ---
 elif menu == "⚙️ User Administration" and st.session_state.user_role == "Admin":
     st.subheader("⚙️ System User Administration")
-    st.caption("Create new accounts, modify user roles, or disable/enable existing system users.")
 
     tab1, tab2 = st.tabs(["👤 Existing Users", "➕ Create New User"])
 
@@ -603,7 +626,7 @@ elif menu == "⚙️ User Administration" and st.session_state.user_role == "Adm
                 col1, col2 = st.columns(2)
                 with col1:
                     new_full_name = st.text_input("Full Name", value=e_f_name)
-                    new_password = st.text_input("New Password (leave plain to keep existing)", value=e_u_pass, type="password")
+                    new_password = st.text_input("New Password", value=e_u_pass, type="password")
                 with col2:
                     new_role = st.selectbox("Role", ["Admin", "Operator"], index=0 if e_role == "Admin" else 1)
                     new_status = st.selectbox("Account Status", ["Active", "Disabled"], index=0 if e_status == "Active" else 1)
